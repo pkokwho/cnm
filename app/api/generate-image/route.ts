@@ -1,4 +1,5 @@
 import { NextRequest } from "next/server";
+import crypto from "crypto";
 import { apiResponse, apiError } from "@/lib/utils";
 import { getAgnesClient } from "@/lib/agnes/client";
 import { AGNES_CONFIG, isAIEnabled } from "@/lib/agnes/config";
@@ -9,21 +10,33 @@ export const runtime = "nodejs";
 
 const VALID_SIZES = ["1024x1024", "1024x768", "768x1024"];
 const MAX_PROMPT_LENGTH = 2000;
+const MAX_DEVICE_ID_LENGTH = 100;
 
-// Constant-time string comparison to prevent timing attacks
+// Use Node.js crypto.timingSafeEqual for constant-time comparison
 function safeCompare(a: string, b: string): boolean {
-  if (a.length !== b.length) return false;
-  let result = 0;
-  for (let i = 0; i < a.length; i++) {
-    result |= a.charCodeAt(i) ^ b.charCodeAt(i);
+  const bufA = Buffer.from(a);
+  const bufB = Buffer.from(b);
+  // Handle length difference in constant time by comparing against fixed-length buffers
+  if (bufA.length !== bufB.length) {
+    // Still do a comparison to equalize timing, then return false
+    crypto.timingSafeEqual(bufA, bufA);
+    return false;
   }
-  return result === 0;
+  return crypto.timingSafeEqual(bufA, bufB);
 }
 
 function isDeveloper(developerKey: string | undefined): boolean {
   const envKey = process.env.DEVELOPER_KEY;
   if (!envKey || !developerKey) return false;
+  if (developerKey.length > 200) return false; // Reject absurdly long keys
   return safeCompare(developerKey, envKey);
+}
+
+// Validate deviceId format (UUID v4 or similar)
+function isValidDeviceId(id: string): boolean {
+  if (!id || id.length > MAX_DEVICE_ID_LENGTH) return false;
+  // Accept UUID format or alphanumeric strings (our client generates UUIDs)
+  return /^[a-f0-9-]{36}$/i.test(id) || /^[a-zA-Z0-9_-]{8,100}$/.test(id);
 }
 
 export async function POST(request: NextRequest) {
@@ -53,17 +66,23 @@ export async function POST(request: NextRequest) {
       return apiError(`不支持的尺寸，可选: ${VALID_SIZES.join(", ")}`, 400);
     }
 
-    // Validate deviceId
-    if (!deviceId?.trim()) {
-      return apiError("设备标识缺失", 400);
+    // Validate deviceId format
+    if (!deviceId?.trim() || !isValidDeviceId(deviceId)) {
+      return apiError("设备标识无效", 400);
     }
 
     // Check developer bypass
     const devMode = isDeveloper(developerKey);
 
+    // Get client IP for secondary tracking (defense in depth)
+    const clientIp =
+      request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ||
+      request.headers.get("x-real-ip") ||
+      undefined;
+
     // Credit check (skip for developers)
     if (!devMode) {
-      const creditCheck = checkImageCredits(deviceId);
+      const creditCheck = checkImageCredits(deviceId, clientIp);
       if (!creditCheck.allowed) {
         return Response.json(
           {
@@ -99,8 +118,8 @@ export async function POST(request: NextRequest) {
     // Consume credit only on successful generation (non-developers only)
     let remaining = -1;
     if (!devMode) {
-      consumeCredit(deviceId);
-      const afterCheck = checkImageCredits(deviceId);
+      consumeCredit(deviceId, clientIp);
+      const afterCheck = checkImageCredits(deviceId, clientIp);
       remaining = afterCheck.remaining;
     }
 

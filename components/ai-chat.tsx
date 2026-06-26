@@ -56,7 +56,7 @@ export function AIChat({ caseId, materials }: AIChatProps) {
     try {
       const response = await fetch("/api/chat", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", "x-evidencebox-request": "1" },
         body: JSON.stringify({
           message: text.trim(),
           history: messages.slice(-10),

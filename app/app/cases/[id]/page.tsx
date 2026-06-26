@@ -119,6 +119,7 @@ export default function CaseWorkspacePage() {
 
         const res = await fetch("/api/extract", {
           method: "POST",
+          headers: { "x-evidencebox-request": "1" },
           body: formData,
           signal: controller.signal,
         });
@@ -175,7 +176,7 @@ export default function CaseWorkspacePage() {
 
       const res = await fetch("/api/analyze", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", "x-evidencebox-request": "1" },
         body: JSON.stringify({ materials: extractedMaterials }),
         signal: controller.signal,
       });

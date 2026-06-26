@@ -1,3 +1,5 @@
+import "server-only";
+
 // Agnes AI configuration — server-side only
 // API Key is read from environment variables and NEVER exposed to the client.
 

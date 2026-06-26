@@ -21,7 +21,6 @@ const serverExternalPackages = ["better-sqlite3"];
 const nextConfig: NextConfig = {
   serverExternalPackages,
   allowedDevOrigins: [
-    "run-agent-6a3c8ee53d912239e30a5cd5-mqut59c6.remote-agent.svc.cluster.local",
     "localhost",
     "127.0.0.1",
   ],

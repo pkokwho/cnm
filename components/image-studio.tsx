@@ -113,7 +113,7 @@ export function ImageStudio() {
     try {
       const res = await fetch("/api/generate-image", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", "x-evidencebox-request": "1" },
         body: JSON.stringify({
           prompt: prompt.trim(),
           size,

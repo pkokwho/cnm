@@ -4,13 +4,47 @@ import { apiResponse, apiError } from "@/lib/utils";
 export const maxDuration = 60;
 export const runtime = "nodejs";
 
+const MAX_FILE_SIZE = 20 * 1024 * 1024; // 20MB
+const ALLOWED_MIME_TYPES = [
+  "application/pdf",
+  "image/png",
+  "image/jpeg",
+  "image/jpg",
+  "image/webp",
+  "image/gif",
+  "text/plain",
+  "text/csv",
+  "text/markdown",
+  "application/octet-stream", // Fallback for unknown types
+];
+const MAX_TEXT_LENGTH = 200000; // Cap extracted text to prevent token abuse
+
 export async function POST(request: NextRequest) {
   try {
     const formData = await request.formData();
     const file = formData.get("file") as File | null;
     if (!file) return apiError("未找到文件", 400);
 
+    // Server-side file size validation (before reading into memory)
+    if (file.size > MAX_FILE_SIZE) {
+      return apiError(`文件过大（最大 ${Math.floor(MAX_FILE_SIZE / 1024 / 1024)}MB）`, 413);
+    }
+    if (file.size === 0) {
+      return apiError("文件为空", 400);
+    }
+
+    // Validate MIME type
     const mimeType = file.type || "application/octet-stream";
+    if (!ALLOWED_MIME_TYPES.includes(mimeType)) {
+      return apiError("不支持的文件类型", 415);
+    }
+
+    // Validate filename length
+    const fileName = file.name || "unknown";
+    if (fileName.length > 200) {
+      return apiError("文件名过长", 400);
+    }
+
     const arrayBuffer = await file.arrayBuffer();
     const buffer = Buffer.from(arrayBuffer);
 
@@ -56,8 +90,14 @@ export async function POST(request: NextRequest) {
       extractedText = cleaned.trim();
     }
 
+    // Cap extracted text length to prevent token abuse
+    if (extractedText.length > MAX_TEXT_LENGTH) {
+      extractedText = extractedText.substring(0, MAX_TEXT_LENGTH) + "\n...（内容过长，已截断）";
+    }
+
     return apiResponse({ text: extractedText, needsOcr });
   } catch (error: any) {
-    return apiError(`提取失败: ${error.message}`, 500);
+    console.error("[Extract API] Error:", error.message);
+    return apiError("服务器繁忙，请稍后重试", 500);
   }
 }

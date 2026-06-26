@@ -7,11 +7,16 @@ import { buildChatSystemPrompt } from "@/lib/agnes/prompts";
 export const maxDuration = 60;
 export const runtime = "nodejs";
 
+const MAX_MESSAGE_LENGTH = 5000;
+const MAX_HISTORY_LENGTH = 20;
+const MAX_MATERIALS_COUNT = 50;
+const MAX_MATERIAL_NAME_LENGTH = 200;
+
 export async function POST(request: NextRequest) {
   try {
     if (!isAIEnabled()) {
       return Response.json(
-        { success: false, error: "AI 对话功能未启用（未配置 API Key）" },
+        { success: false, error: "AI 对话功能未启用" },
         { status: 503 }
       );
     }
@@ -26,6 +31,25 @@ export async function POST(request: NextRequest) {
     if (!message?.trim()) {
       return Response.json({ success: false, error: "消息不能为空" }, { status: 400 });
     }
+    if (message.length > MAX_MESSAGE_LENGTH) {
+      return Response.json({ success: false, error: "消息过长" }, { status: 400 });
+    }
+
+    // Validate and cap history
+    const safeHistory = Array.isArray(history) ? history.slice(-MAX_HISTORY_LENGTH) : [];
+    for (const h of safeHistory) {
+      if (typeof h.content !== "string" || h.content.length > MAX_MESSAGE_LENGTH) {
+        return Response.json({ success: false, error: "历史消息格式异常" }, { status: 400 });
+      }
+    }
+
+    // Validate and cap materials
+    const safeMaterials = Array.isArray(materials) ? materials.slice(0, MAX_MATERIALS_COUNT) : [];
+    for (const m of safeMaterials) {
+      if (m.originalName && m.originalName.length > MAX_MATERIAL_NAME_LENGTH) {
+        m.originalName = m.originalName.substring(0, MAX_MATERIAL_NAME_LENGTH);
+      }
+    }
 
     // Rate limit check
     const rateCheck = checkRateLimit();
@@ -38,7 +62,7 @@ export async function POST(request: NextRequest) {
 
     // Build material context (truncate per material)
     const limit = AGNES_CONFIG.limits.chatPerMaterialCharLimit;
-    const contextText = (materials || [])
+    const contextText = (safeMaterials || [])
       .filter(m => m.extractedText)
       .map(m => {
         const text = m.extractedText.length > limit
@@ -53,7 +77,7 @@ export async function POST(request: NextRequest) {
     // Build messages (system + last 10 history + current message)
     const messages = [
       { role: "system" as const, content: systemPrompt },
-      ...((history || []).slice(-10).map(h => ({
+      ...(safeHistory.slice(-10).map(h => ({
         role: h.role as "user" | "assistant",
         content: h.content,
       }))),
@@ -87,7 +111,7 @@ export async function POST(request: NextRequest) {
         } catch (error: any) {
           console.error("[Agnes AI] Chat error:", error.message);
           controller.enqueue(
-            encoder.encode(`data: ${JSON.stringify({ error: error.message })}\n\n`)
+            encoder.encode(`data: ${JSON.stringify({ error: "服务器繁忙，请稍后重试" })}\n\n`)
           );
         } finally {
           controller.close();
@@ -103,8 +127,9 @@ export async function POST(request: NextRequest) {
       },
     });
   } catch (error: any) {
+    console.error("[Chat API] Error:", error.message);
     return Response.json(
-      { success: false, error: `对话失败: ${error.message}` },
+      { success: false, error: "服务器繁忙，请稍后重试" },
       { status: 500 }
     );
   }
