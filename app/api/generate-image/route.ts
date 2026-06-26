@@ -75,9 +75,11 @@ export async function POST(request: NextRequest) {
     const devMode = isDeveloper(developerKey);
 
     // Get client IP for secondary tracking (defense in depth)
+    // Priority: cf-connecting-ip (set by Cloudflare) > x-real-ip > x-forwarded-for
     const clientIp =
-      request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ||
+      request.headers.get("cf-connecting-ip") ||
       request.headers.get("x-real-ip") ||
+      request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ||
       undefined;
 
     // Credit check (skip for developers)

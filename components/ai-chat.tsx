@@ -5,6 +5,7 @@ import { Send, Loader2, Trash2, MessageSquare, Sparkles } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
+import { getApiHeaders } from "@/lib/request-token";
 import * as clientStore from "@/lib/client-store";
 import type { ChatMessage } from "@/lib/client-store";
 import { useI18n } from "@/lib/i18n/context";
@@ -56,7 +57,7 @@ export function AIChat({ caseId, materials }: AIChatProps) {
     try {
       const response = await fetch("/api/chat", {
         method: "POST",
-        headers: { "Content-Type": "application/json", "x-evidencebox-request": "1" },
+        headers: getApiHeaders(),
         body: JSON.stringify({
           message: text.trim(),
           history: messages.slice(-10),

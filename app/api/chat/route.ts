@@ -75,10 +75,12 @@ export async function POST(request: NextRequest) {
     const systemPrompt = buildChatSystemPrompt(contextText || "（用户尚未上传材料）");
 
     // Build messages (system + last 10 history + current message)
+    // CRITICAL: Filter history roles — only allow "user" and "assistant"
+    // Attackers can try to inject "system" or "developer" roles to override our system prompt
     const messages = [
       { role: "system" as const, content: systemPrompt },
       ...(safeHistory.slice(-10).map(h => ({
-        role: h.role as "user" | "assistant",
+        role: (h.role === "assistant" ? "assistant" : "user") as "user" | "assistant",
         content: h.content,
       }))),
       { role: "user" as const, content: message },

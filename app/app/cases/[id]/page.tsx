@@ -13,6 +13,7 @@ import { ResultTabs } from "@/components/result-tabs";
 import type { AnalysisResult } from "@/lib/analyzer/types";
 import { useI18n } from "@/lib/i18n/context";
 import * as clientStore from "@/lib/client-store";
+import { getApiHeaders } from "@/lib/request-token";
 
 interface Material {
   id: string;
@@ -119,7 +120,7 @@ export default function CaseWorkspacePage() {
 
         const res = await fetch("/api/extract", {
           method: "POST",
-          headers: { "x-evidencebox-request": "1" },
+          headers: { "x-eb-token": getApiHeaders()["x-eb-token"], "x-evidencebox-request": "1" },
           body: formData,
           signal: controller.signal,
         });
@@ -176,7 +177,7 @@ export default function CaseWorkspacePage() {
 
       const res = await fetch("/api/analyze", {
         method: "POST",
-        headers: { "Content-Type": "application/json", "x-evidencebox-request": "1" },
+        headers: getApiHeaders(),
         body: JSON.stringify({ materials: extractedMaterials }),
         signal: controller.signal,
       });

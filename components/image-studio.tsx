@@ -27,6 +27,7 @@ import {
 } from "@/components/ui/dialog";
 import { useI18n } from "@/lib/i18n/context";
 import { getDeviceId, getDeveloperKey, setDeveloperKey } from "@/lib/device";
+import { getApiHeaders } from "@/lib/request-token";
 import * as imageStore from "@/lib/image-store";
 import type { GeneratedImage } from "@/lib/image-store";
 
@@ -113,7 +114,7 @@ export function ImageStudio() {
     try {
       const res = await fetch("/api/generate-image", {
         method: "POST",
-        headers: { "Content-Type": "application/json", "x-evidencebox-request": "1" },
+        headers: getApiHeaders(),
         body: JSON.stringify({
           prompt: prompt.trim(),
           size,
