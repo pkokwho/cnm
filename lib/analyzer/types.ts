@@ -59,4 +59,5 @@ export interface AnalysisResult {
   summary: Summary;
   todos: TodoItem[];
   suggestions: Suggestion[];
+  engine?: "rules" | "rules-fallback" | "agnes-ai";
 }

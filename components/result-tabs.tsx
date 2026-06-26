@@ -1,15 +1,18 @@
 "use client";
 
 import { useState } from "react";
-import { Calendar, FileText, CheckSquare, Lightbulb, Download, Loader2 } from "lucide-react";
+import { Calendar, FileText, CheckSquare, Lightbulb, Download, Loader2, MessageSquare, Sparkles } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 import { TimelineView } from "@/components/views/timeline-view";
 import { SummaryView } from "@/components/views/summary-view";
 import { TodosView } from "@/components/views/todos-view";
 import { SuggestionsView } from "@/components/views/suggestions-view";
+import { AIChat } from "@/components/ai-chat";
 import type { AnalysisResult, TimelineEntry, Summary, TodoItem, Suggestion } from "@/lib/analyzer/types";
 import { useI18n } from "@/lib/i18n/context";
+import * as clientStore from "@/lib/client-store";
 
 interface ResultTabsProps {
   result: AnalysisResult | null;
@@ -21,6 +24,17 @@ interface ResultTabsProps {
 export function ResultTabs({ result, caseId, caseTitle, loading }: ResultTabsProps) {
   const { t } = useI18n();
   const [activeTab, setActiveTab] = useState("timeline");
+
+  // Get extracted materials for AI chat context
+  const getChatMaterials = (cid: string) => {
+    return clientStore
+      .getMaterialsByCaseId(cid)
+      .filter((m) => m.status === "extracted" && m.extractedText)
+      .map((m) => ({
+        originalName: m.originalName,
+        extractedText: m.extractedText || "",
+      }));
+  };
 
   const handleExport = () => {
     if (!result) return;
@@ -122,7 +136,25 @@ export function ResultTabs({ result, caseId, caseTitle, loading }: ResultTabsPro
   return (
     <div>
       <div className="mb-4 flex items-center justify-between">
-        <h2 className="text-lg font-bold">{t("result.title")}</h2>
+        <div className="flex items-center gap-2">
+          <h2 className="text-lg font-bold">{t("result.title")}</h2>
+          {result.engine === "agnes-ai" && (
+            <Badge variant="default" className="text-xs">
+              <Sparkles className="mr-1 h-3 w-3" />
+              {t("engine.ai")}
+            </Badge>
+          )}
+          {result.engine === "rules-fallback" && (
+            <Badge variant="secondary" className="text-xs">
+              {t("engine.fallback")}
+            </Badge>
+          )}
+          {result.engine === "rules" && (
+            <Badge variant="secondary" className="text-xs">
+              {t("engine.rules")}
+            </Badge>
+          )}
+        </div>
         <Button variant="secondary" size="sm" onClick={handleExport}>
           <Download className="mr-2 h-4 w-4" />
           {t("result.export")}
@@ -130,7 +162,7 @@ export function ResultTabs({ result, caseId, caseTitle, loading }: ResultTabsPro
       </div>
 
       <Tabs value={activeTab} onValueChange={setActiveTab}>
-        <TabsList className="grid w-full grid-cols-4">
+        <TabsList className="grid w-full grid-cols-5">
           <TabsTrigger value="timeline">
             <Calendar className="mr-1.5 h-4 w-4" />
             {t("result.tab.timeline")}
@@ -162,6 +194,11 @@ export function ResultTabs({ result, caseId, caseTitle, loading }: ResultTabsPro
               </span>
             )}
           </TabsTrigger>
+          <TabsTrigger value="chat">
+            <MessageSquare className="mr-1.5 h-4 w-4" />
+            {t("result.tab.chat")}
+            <Sparkles className="ml-0.5 h-3 w-3 text-accent" />
+          </TabsTrigger>
         </TabsList>
 
         <TabsContent value="timeline" className="mt-6">
@@ -175,6 +212,12 @@ export function ResultTabs({ result, caseId, caseTitle, loading }: ResultTabsPro
         </TabsContent>
         <TabsContent value="suggestions" className="mt-6">
           <SuggestionsView suggestions={result.suggestions} />
+        </TabsContent>
+        <TabsContent value="chat" className="mt-6">
+          <AIChat
+            caseId={caseId}
+            materials={getChatMaterials(caseId)}
+          />
         </TabsContent>
       </Tabs>
     </div>

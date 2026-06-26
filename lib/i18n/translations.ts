@@ -180,6 +180,23 @@ export const translations = {
   "result.tab.summary": { zh: "摘要", en: "Summary" },
   "result.tab.todos": { zh: "待办", en: "Todos" },
   "result.tab.suggestions": { zh: "建议", en: "Suggestions" },
+  "result.tab.chat": { zh: "AI 对话", en: "AI Chat" },
+
+  // Engine badges
+  "engine.ai": { zh: "AI 增强", en: "AI Enhanced" },
+  "engine.rules": { zh: "规则引擎", en: "Rule Engine" },
+  "engine.fallback": { zh: "规则引擎（AI 降级）", en: "Rules (AI Fallback)" },
+
+  // AI Chat
+  "chat.placeholder": { zh: "就案件材料提问...", en: "Ask about your materials..." },
+  "chat.empty": { zh: "开始与 AI 对话", en: "Start a conversation" },
+  "chat.empty.desc": { zh: "基于你的材料内容，AI 可以回答问题、提供建议", en: "AI can answer questions based on your materials" },
+  "chat.suggested": { zh: "试试这些问题", en: "Try these questions" },
+  "chat.clear": { zh: "清空对话", en: "Clear chat" },
+  "chat.clear.confirm": { zh: "确定清空所有对话记录？", en: "Clear all chat history?" },
+  "chat.sending": { zh: "AI 正在思考...", en: "AI is thinking..." },
+  "chat.error": { zh: "对话服务暂时不可用", en: "Chat service unavailable" },
+  "chat.rateLimited": { zh: "请求过于频繁，请稍等片刻再试", en: "Too many requests, please wait" },
 
   // Timeline view
   "timeline.empty": { zh: "未检测到时间信息", en: "No timeline data detected" },

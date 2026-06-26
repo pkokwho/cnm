@@ -35,6 +35,13 @@ export interface ClientAnalysisResult {
   summary: any;
   todos: any[];
   suggestions: any[];
+  engine?: string;
+}
+
+export interface ChatMessage {
+  role: "user" | "assistant";
+  content: string;
+  timestamp: number;
 }
 
 // ===== IndexedDB for file blobs =====
@@ -264,4 +271,26 @@ function getMimeTypeCategory(mime: string): string {
 
 export function generateId(): string {
   return crypto.randomUUID();
+}
+
+// ===== Chat History =====
+const CHAT_KEY_PREFIX = "evidencebox:chat:";
+
+export function getChatHistory(caseId: string): ChatMessage[] {
+  try {
+    return JSON.parse(localStorage.getItem(`${CHAT_KEY_PREFIX}${caseId}`) || "[]");
+  } catch {
+    return [];
+  }
+}
+
+export function saveChatMessage(caseId: string, message: ChatMessage) {
+  const history = getChatHistory(caseId);
+  history.push(message);
+  const trimmed = history.slice(-100);
+  localStorage.setItem(`${CHAT_KEY_PREFIX}${caseId}`, JSON.stringify(trimmed));
+}
+
+export function clearChatHistory(caseId: string) {
+  localStorage.removeItem(`${CHAT_KEY_PREFIX}${caseId}`);
 }
