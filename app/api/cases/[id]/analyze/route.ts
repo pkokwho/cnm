@@ -6,6 +6,10 @@ import { processPdf } from "@/lib/processors/pdf";
 import { processImage } from "@/lib/processors/image";
 import { analyzeCase } from "@/lib/analyzer";
 
+// Allow up to 60 seconds for analysis (OCR can be slow)
+export const maxDuration = 60;
+export const runtime = "nodejs";
+
 export async function POST(
   _request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
@@ -66,6 +70,29 @@ export async function POST(
     const extractedMaterials = store
       .getMaterialsByCaseId(id)
       .filter((m) => m.status === "extracted" && m.extractedText);
+
+    if (extractedMaterials.length === 0) {
+      // No text was extracted from any material (e.g., OCR failed for all images)
+      const failedMaterials = store.getMaterialsByCaseId(id).filter((m) => m.status === "failed");
+      const errMsg = failedMaterials.length > 0
+        ? "所有材料处理失败，请尝试上传 TXT 或 PDF 格式的文本文件"
+        : "未能从材料中提取到文本内容，请尝试上传包含文字的文件";
+
+      // Still mark as ready so the UI doesn't stay stuck
+      store.updateCaseStatus(id, "ready");
+
+      // Save empty result so the UI shows "no results" state
+      const emptyResult = { timeline: [], summary: { oneLine: "", keyPoints: [], keywords: [] }, todos: [], suggestions: [] };
+      const resultId = crypto.randomUUID();
+      store.saveAnalysisResult(resultId, id, {
+        timeline: JSON.stringify(emptyResult.timeline),
+        summary: JSON.stringify(emptyResult.summary),
+        todos: JSON.stringify(emptyResult.todos),
+        suggestions: JSON.stringify(emptyResult.suggestions),
+      });
+
+      return apiResponse(emptyResult);
+    }
 
     const inputMaterials = extractedMaterials.map((m) => ({
       id: m.id,

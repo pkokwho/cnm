@@ -135,8 +135,15 @@ export default function CaseWorkspacePage() {
 
   const handleAnalyze = async () => {
     setAnalyzing(true);
+    // Use AbortController with 55s timeout (Vercel maxDuration is 60s)
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 55000);
     try {
-      const res = await fetch(`/api/cases/${caseId}/analyze`, { method: "POST" });
+      const res = await fetch(`/api/cases/${caseId}/analyze`, {
+        method: "POST",
+        signal: controller.signal,
+      });
+      clearTimeout(timeoutId);
       const data = await res.json();
       if (data.success) {
         // Analysis completed synchronously (POST blocks until done)
@@ -148,8 +155,15 @@ export default function CaseWorkspacePage() {
         alert(data.error || t("error.analyzeFailed"));
       }
     } catch (err: any) {
+      clearTimeout(timeoutId);
       setAnalyzing(false);
-      alert(`${t("error.analyzeFailed")}: ${err.message}`);
+      if (err.name === "AbortError") {
+        // Timeout — refresh case data in case analysis completed server-side
+        await fetchCase();
+        alert(t("error.analyzeFailed") + " (timeout)");
+      } else {
+        alert(`${t("error.analyzeFailed")}: ${err.message}`);
+      }
     }
   };
 

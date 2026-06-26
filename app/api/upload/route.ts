@@ -2,6 +2,8 @@ import { NextRequest } from "next/server";
 import { store } from "@/lib/store";
 import { apiResponse, apiError } from "@/lib/utils";
 
+export const maxDuration = 60;
+
 const ALLOWED_MIME_TYPES: Record<string, string> = {
   "image/png": "image",
   "image/jpeg": "image",
