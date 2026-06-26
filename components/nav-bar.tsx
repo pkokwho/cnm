@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Box, Home, LayoutDashboard, Languages } from "lucide-react";
+import { Box, Home, LayoutDashboard, Languages, Sparkles } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { useI18n } from "@/lib/i18n/context";
@@ -10,6 +10,8 @@ import { useI18n } from "@/lib/i18n/context";
 export function NavBar() {
   const pathname = usePathname();
   const isWorkspace = pathname?.startsWith("/app");
+  const isImageStudio = pathname?.startsWith("/app/image-studio");
+  const isHome = !isWorkspace;
   const { lang, toggleLang, t } = useI18n();
 
   return (
@@ -28,9 +30,8 @@ export function NavBar() {
         <nav className="flex items-center gap-2">
           <Link href="/">
             <Button
-              variant={isWorkspace ? "ghost" : "secondary"}
+              variant={isHome ? "secondary" : "ghost"}
               size="sm"
-              className={cn(!isWorkspace && "bg-bg2")}
             >
               <Home className="mr-1 h-4 w-4" />
               {t("nav.home")}
@@ -38,11 +39,20 @@ export function NavBar() {
           </Link>
           <Link href="/app">
             <Button
-              variant={isWorkspace ? "secondary" : "default"}
+              variant={isWorkspace && !isImageStudio ? "secondary" : "ghost"}
               size="sm"
             >
               <LayoutDashboard className="mr-1 h-4 w-4" />
               {t("nav.workspace")}
+            </Button>
+          </Link>
+          <Link href="/app/image-studio">
+            <Button
+              variant={isImageStudio ? "secondary" : "default"}
+              size="sm"
+            >
+              <Sparkles className="mr-1 h-4 w-4" />
+              {t("nav.imageStudio")}
             </Button>
           </Link>
           <Button

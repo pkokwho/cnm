@@ -5,6 +5,7 @@ export const translations = {
   "nav.home": { zh: "首页", en: "Home" },
   "nav.workspace": { zh: "工作台", en: "Workspace" },
   "nav.brand": { zh: "证据盒", en: "EvidenceBox" },
+  "nav.imageStudio": { zh: "AI 生图", en: "AI Image" },
 
   // Landing page - Hero
   "hero.badge": { zh: "社会服务赛道", en: "Social Service Track" },
@@ -270,6 +271,36 @@ export const translations = {
   "sse.analyzing": { zh: "正在分析材料", en: "Analyzing materials" },
   "sse.ready": { zh: "分析完成", en: "Analysis complete" },
   "sse.failed": { zh: "分析失败", en: "Analysis failed" },
+
+  // Image Studio
+  "image.title": { zh: "AI 生图工作室", en: "AI Image Studio" },
+  "image.subtitle": { zh: "输入描述，AI 为你生成图片", en: "Describe what you want, AI generates it" },
+  "image.prompt.label": { zh: "提示词", en: "Prompt" },
+  "image.prompt.placeholder": { zh: "描述你想要生成的图片，例如：一只柴犬在樱花树下睡觉...", en: "Describe the image you want..." },
+  "image.prompt.hint": { zh: "支持中文，最多 2000 字符", en: "Chinese supported, max 2000 chars" },
+  "image.size.label": { zh: "图片尺寸", en: "Image Size" },
+  "image.size.square": { zh: "1:1 方形", en: "1:1 Square" },
+  "image.size.landscape": { zh: "4:3 横向", en: "4:3 Landscape" },
+  "image.size.portrait": { zh: "3:4 纵向", en: "3:4 Portrait" },
+  "image.generate": { zh: "生成图片", en: "Generate" },
+  "image.generating": { zh: "AI 正在创作中...", en: "AI is creating..." },
+  "image.result": { zh: "生成结果", en: "Result" },
+  "image.download": { zh: "下载", en: "Download" },
+  "image.delete": { zh: "删除", en: "Delete" },
+  "image.history": { zh: "历史记录", en: "History" },
+  "image.history.empty": { zh: "还没有生成过图片", en: "No images generated yet" },
+  "image.rateLimited": { zh: "生成过于频繁，请等待后再试", en: "Rate limited, please wait" },
+  "image.rateLimit.countdown": { zh: "距离下次可生成", en: "Next generation in" },
+  "image.gen.error": { zh: "图片生成失败", en: "Image generation failed" },
+  "image.noResult": { zh: "暂无生成结果", en: "No result yet" },
+  "image.cached": { zh: "已缓存", en: "Cached" },
+  "image.dev.title": { zh: "开发者模式", en: "Developer Mode" },
+  "image.dev.desc": { zh: "输入开发者密钥可解除生图频率限制", en: "Enter developer key to bypass rate limits" },
+  "image.dev.keyLabel": { zh: "开发者密钥", en: "Developer Key" },
+  "image.dev.keyPlaceholder": { zh: "输入开发者密钥...", en: "Enter developer key..." },
+  "image.dev.enabled": { zh: "开发者模式已启用", en: "Developer mode enabled" },
+  "image.dev.activate": { zh: "激活", en: "Activate" },
+  "image.dev.deactivate": { zh: "退出开发者模式", en: "Exit Developer Mode" },
 } as const;
 
 export type TranslationKey = keyof typeof translations;
