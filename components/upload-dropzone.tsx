@@ -6,6 +6,7 @@ import { UploadCloud, FileText, Image, FileType, CheckCircle, AlertCircle } from
 import { cn, formatBytes } from "@/lib/utils";
 import { Progress } from "@/components/ui/progress";
 import { useI18n } from "@/lib/i18n/context";
+import * as clientStore from "@/lib/client-store";
 
 interface UploadedFile {
   name: string;
@@ -24,27 +25,16 @@ export function UploadDropzone({ caseId, onUploaded }: { caseId: string; onUploa
       setFiles((prev) => [...prev, fileEntry]);
 
       try {
-        const formData = new FormData();
-        formData.append("file", file);
-        formData.append("caseId", caseId);
+        // Save file to IndexedDB and metadata to localStorage
+        const materialId = clientStore.generateId();
+        await clientStore.saveFileBlob(materialId, file);
+        clientStore.createMaterial(materialId, caseId, file);
+        clientStore.updateCaseStatus(caseId, "uploading");
 
-        const res = await fetch("/api/upload", { method: "POST", body: formData });
-        const data = await res.json();
-
-        if (data.success) {
-          setFiles((prev) =>
-            prev.map((f) => (f.name === file.name && f.size === file.size ? { ...f, status: "done" } : f))
-          );
-          onUploaded?.();
-        } else {
-          setFiles((prev) =>
-            prev.map((f) =>
-              f.name === file.name && f.size === file.size
-                ? { ...f, status: "error", error: data.error }
-                : f
-            )
-          );
-        }
+        setFiles((prev) =>
+          prev.map((f) => (f.name === file.name && f.size === file.size ? { ...f, status: "done" } : f))
+        );
+        onUploaded?.();
       } catch (err: any) {
         setFiles((prev) =>
           prev.map((f) =>

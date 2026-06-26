@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
 import { ArrowLeft, Play, Loader2, Sparkles } from "lucide-react";
@@ -12,6 +12,7 @@ import { CaseProgress } from "@/components/case-progress";
 import { ResultTabs } from "@/components/result-tabs";
 import type { AnalysisResult } from "@/lib/analyzer/types";
 import { useI18n } from "@/lib/i18n/context";
+import * as clientStore from "@/lib/client-store";
 
 interface Material {
   id: string;
@@ -42,129 +43,158 @@ export default function CaseWorkspacePage() {
   const [loading, setLoading] = useState(true);
   const [analyzing, setAnalyzing] = useState(false);
   const [materialProgress, setMaterialProgress] = useState<{ extracted: number; total: number } | undefined>();
-  const eventSourceRef = useRef<EventSource | null>(null);
 
-  const fetchCase = useCallback(async () => {
-    try {
-      const res = await fetch(`/api/cases/${caseId}`);
-      const data = await res.json();
-      if (data.success) {
-        setCaseData(data.data);
-      }
-    } catch (err) {
-      console.error("Failed to fetch case:", err);
-    } finally {
+  const refreshCase = useCallback(() => {
+    const c = clientStore.getCase(caseId);
+    if (!c) {
+      setCaseData(null);
       setLoading(false);
+      return;
     }
+    const materials = clientStore.getMaterialsByCaseId(caseId);
+    const result = clientStore.getAnalysisResult(caseId);
+    setCaseData({
+      ...c,
+      materials: materials.map((m) => ({
+        id: m.id,
+        originalName: m.originalName,
+        mimeType: m.mimeType,
+        sizeBytes: m.sizeBytes,
+        category: m.category,
+        status: m.status,
+        errorMsg: m.errorMsg,
+      })),
+      analysisResult: result,
+    });
+    setLoading(false);
   }, [caseId]);
 
   useEffect(() => {
-    fetchCase();
-  }, [fetchCase]);
-
-  // SSE for progress updates
-  useEffect(() => {
-    if (!caseData) return;
-    if (!["extracting", "analyzing"].includes(caseData.status)) return;
-
-    let closed = false;
-    const eventSource = new EventSource(`/api/cases/${caseId}/stream`);
-    eventSourceRef.current = eventSource;
-
-    eventSource.onmessage = (event) => {
-      try {
-        const data = JSON.parse(event.data);
-
-        if (data.type === "progress") {
-          setCaseData((prev) => prev ? { ...prev, status: data.stage } : prev);
-          if (data.materialProgress) {
-            setMaterialProgress(data.materialProgress);
-          }
-          // Refresh case data to get updated material statuses
-          if (data.stage === "analyzing" || data.stage === "ready") {
-            fetchCase();
-          }
-        } else if (data.type === "complete") {
-          closed = true;
-          setAnalyzing(false);
-          fetchCase();
-          eventSource.close();
-        } else if (data.type === "error") {
-          closed = true;
-          setAnalyzing(false);
-          fetchCase();
-          eventSource.close();
-        }
-      } catch (err) {
-        // ignore parse errors
-      }
-    };
-
-    eventSource.onerror = () => {
-      if (closed) return; // Already handled by complete/error
-      closed = true;
-      eventSource.close();
-      // Fallback: poll status
-      const interval = setInterval(async () => {
-        try {
-          const res = await fetch(`/api/cases/${caseId}/status`);
-          const data = await res.json();
-          if (data.success) {
-            const { caseStatus, progress } = data.data;
-            setMaterialProgress(progress);
-            setCaseData((prev) => prev ? { ...prev, status: caseStatus } : prev);
-
-            if (caseStatus === "ready" || caseStatus === "failed") {
-              setAnalyzing(false);
-              clearInterval(interval);
-              fetchCase();
-            }
-          }
-        } catch (err) {
-          // ignore
-        }
-      }, 2000);
-    };
-
-    return () => {
-      closed = true;
-      eventSource.close();
-      eventSourceRef.current = null;
-    };
-  }, [caseData?.status, caseId, fetchCase]);
+    refreshCase();
+  }, [refreshCase]);
 
   const handleAnalyze = async () => {
     setAnalyzing(true);
-    // Use AbortController with 55s timeout (Vercel maxDuration is 60s)
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 55000);
+    clientStore.updateCaseStatus(caseId, "extracting");
+
+    const materials = clientStore.getMaterialsByCaseId(caseId);
+    if (materials.length === 0) {
+      setAnalyzing(false);
+      return;
+    }
+
+    const total = materials.length;
+    let extracted = 0;
+    setMaterialProgress({ extracted: 0, total });
+    refreshCase();
+
+    // Phase A: Extract text from each material via API
+    for (const material of materials) {
+      if (material.status === "extracted" && material.extractedText) {
+        extracted++;
+        setMaterialProgress({ extracted, total });
+        continue;
+      }
+
+      clientStore.updateMaterial(material.id, { status: "extracting" });
+      refreshCase();
+
+      try {
+        // Get file blob from IndexedDB
+        const blob = await clientStore.getFileBlob(material.id);
+        if (!blob) {
+          clientStore.updateMaterial(material.id, { status: "failed", errorMsg: "文件未找到" });
+          extracted++;
+          setMaterialProgress({ extracted, total });
+          continue;
+        }
+
+        // Send to extract API
+        const formData = new FormData();
+        const file = new File([blob], material.originalName, { type: material.mimeType });
+        formData.append("file", file);
+
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 55000);
+
+        const res = await fetch("/api/extract", {
+          method: "POST",
+          body: formData,
+          signal: controller.signal,
+        });
+        clearTimeout(timeoutId);
+
+        const data = await res.json();
+        if (data.success) {
+          clientStore.updateMaterial(material.id, {
+            status: "extracted",
+            extractedText: data.data.text,
+          });
+        } else {
+          clientStore.updateMaterial(material.id, {
+            status: "failed",
+            errorMsg: data.error || "提取失败",
+          });
+        }
+      } catch (err: any) {
+        clientStore.updateMaterial(material.id, {
+          status: "failed",
+          errorMsg: err.name === "AbortError" ? "超时" : err.message,
+        });
+      }
+      extracted++;
+      setMaterialProgress({ extracted, total });
+      refreshCase();
+    }
+
+    // Phase B: Analyze
+    clientStore.updateCaseStatus(caseId, "analyzing");
+    refreshCase();
+
+    const extractedMaterials = clientStore
+      .getMaterialsByCaseId(caseId)
+      .filter((m) => m.status === "extracted" && m.extractedText)
+      .map((m) => ({
+        id: m.id,
+        originalName: m.originalName,
+        extractedText: m.extractedText || "",
+      }));
+
+    if (extractedMaterials.length === 0) {
+      clientStore.saveAnalysisResult(caseId, { timeline: [], summary: { oneLine: "", keyPoints: [], keywords: [] }, todos: [], suggestions: [] });
+      clientStore.updateCaseStatus(caseId, "ready");
+      setAnalyzing(false);
+      setMaterialProgress(undefined);
+      refreshCase();
+      return;
+    }
+
     try {
-      const res = await fetch(`/api/cases/${caseId}/analyze`, {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 30000);
+
+      const res = await fetch("/api/analyze", {
         method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ materials: extractedMaterials }),
         signal: controller.signal,
       });
       clearTimeout(timeoutId);
+
       const data = await res.json();
       if (data.success) {
-        // Analysis completed synchronously (POST blocks until done)
-        // Refresh case data and reset analyzing state
-        await fetchCase();
-        setAnalyzing(false);
+        clientStore.saveAnalysisResult(caseId, data.data);
+        clientStore.updateCaseStatus(caseId, "ready");
       } else {
-        setAnalyzing(false);
-        alert(data.error || t("error.analyzeFailed"));
+        clientStore.updateCaseStatus(caseId, "failed");
       }
     } catch (err: any) {
-      clearTimeout(timeoutId);
-      setAnalyzing(false);
-      if (err.name === "AbortError") {
-        // Timeout — refresh case data in case analysis completed server-side
-        await fetchCase();
-        alert(t("error.analyzeFailed") + " (timeout)");
-      } else {
-        alert(`${t("error.analyzeFailed")}: ${err.message}`);
-      }
+      clientStore.updateCaseStatus(caseId, "failed");
     }
+
+    setAnalyzing(false);
+    setMaterialProgress(undefined);
+    refreshCase();
   };
 
   if (loading) {
@@ -187,25 +217,14 @@ export default function CaseWorkspacePage() {
   }
 
   const hasMaterials = caseData.materials.length > 0;
-  // Materials can be "uploaded" (not yet processed), "extracted", or "failed"
-  // The extraction happens during analysis, so we allow starting analysis as long as materials exist
   const isProcessing = ["extracting", "analyzing"].includes(caseData.status);
 
-  // Parse analysis result
   const analysisResult: AnalysisResult | null = caseData.analysisResult
     ? {
-        timeline: typeof caseData.analysisResult.timeline === "string"
-          ? JSON.parse(caseData.analysisResult.timeline)
-          : caseData.analysisResult.timeline,
-        summary: typeof caseData.analysisResult.summary === "string"
-          ? JSON.parse(caseData.analysisResult.summary)
-          : caseData.analysisResult.summary,
-        todos: typeof caseData.analysisResult.todos === "string"
-          ? JSON.parse(caseData.analysisResult.todos)
-          : caseData.analysisResult.todos,
-        suggestions: typeof caseData.analysisResult.suggestions === "string"
-          ? JSON.parse(caseData.analysisResult.suggestions)
-          : caseData.analysisResult.suggestions,
+        timeline: caseData.analysisResult.timeline || [],
+        summary: caseData.analysisResult.summary || { oneLine: "", keyPoints: [], keywords: [] },
+        todos: caseData.analysisResult.todos || [],
+        suggestions: caseData.analysisResult.suggestions || [],
       }
     : null;
 
@@ -237,7 +256,7 @@ export default function CaseWorkspacePage() {
               <CardTitle className="text-base">{t("case.upload.title")}</CardTitle>
             </CardHeader>
             <CardContent>
-              <UploadDropzone caseId={caseId} onUploaded={fetchCase} />
+              <UploadDropzone caseId={caseId} onUploaded={refreshCase} />
             </CardContent>
           </Card>
 

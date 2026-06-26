@@ -1,7 +1,7 @@
 "use client";
 
-import { useState, useEffect } from "react";
-import Link from "next/link";
+import { useState, useEffect, useCallback } from "react";
+import { useRouter } from "next/navigation";
 import { Plus, FolderOpen, Clock, Trash2, Box } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
@@ -11,18 +11,12 @@ import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { formatTime } from "@/lib/utils";
 import { useI18n } from "@/lib/i18n/context";
-
-interface CaseData {
-  id: string;
-  title: string;
-  status: string;
-  createdAt: number;
-  updatedAt: number;
-}
+import * as clientStore from "@/lib/client-store";
 
 export default function WorkspaceHome() {
   const { t } = useI18n();
-  const [cases, setCases] = useState<CaseData[]>([]);
+  const router = useRouter();
+  const [cases, setCases] = useState<clientStore.ClientCase[]>([]);
   const [loading, setLoading] = useState(true);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [newTitle, setNewTitle] = useState("");
@@ -38,41 +32,25 @@ export default function WorkspaceHome() {
     failed: { label: t("status.failed"), variant: "destructive" },
   };
 
-  useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      try {
-        const res = await fetch("/api/cases");
-        const data = await res.json();
-        if (!cancelled && data.success) {
-          setCases(data.data);
-        }
-      } catch (err) {
-        console.error("Failed to fetch cases:", err);
-      } finally {
-        if (!cancelled) setLoading(false);
-      }
-    })();
-    return () => { cancelled = true; };
+  const refreshCases = useCallback(() => {
+    setCases(clientStore.getCases());
+    setLoading(false);
   }, []);
 
-  const handleCreate = async () => {
+  useEffect(() => {
+    refreshCases();
+  }, [refreshCases]);
+
+  const handleCreate = () => {
     if (!newTitle.trim()) return;
     setCreating(true);
     try {
-      const res = await fetch("/api/cases", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ title: newTitle.trim() }),
-      });
-      const data = await res.json();
-      if (data.success) {
-        setNewTitle("");
-        setDialogOpen(false);
-        const res2 = await fetch("/api/cases");
-        const data2 = await res2.json();
-        if (data2.success) setCases(data2.data);
-      }
+      const id = clientStore.generateId();
+      clientStore.createCase(id, newTitle.trim());
+      setNewTitle("");
+      setDialogOpen(false);
+      // Navigate to the new case page
+      router.push(`/app/cases/${id}`);
     } catch (err) {
       console.error("Failed to create case:", err);
     } finally {
@@ -80,16 +58,10 @@ export default function WorkspaceHome() {
     }
   };
 
-  const handleDelete = async (id: string) => {
-    try {
-      await fetch(`/api/cases/${id}`, { method: "DELETE" });
-      setDeleteConfirm(null);
-      const res = await fetch("/api/cases");
-      const data = await res.json();
-      if (data.success) setCases(data.data);
-    } catch (err) {
-      console.error("Failed to delete case:", err);
-    }
+  const handleDelete = (id: string) => {
+    clientStore.deleteCase(id);
+    setDeleteConfirm(null);
+    refreshCases();
   };
 
   return (
@@ -176,9 +148,9 @@ export default function WorkspaceHome() {
                 </CardHeader>
                 <CardContent className="pt-0">
                   <div className="flex items-center justify-between">
-                    <Link href={`/app/cases/${c.id}`}>
-                      <Button variant="secondary" size="sm">{t("cases.open")}</Button>
-                    </Link>
+                    <Button variant="secondary" size="sm" onClick={() => router.push(`/app/cases/${c.id}`)}>
+                      {t("cases.open")}
+                    </Button>
                     <Button
                       variant="ghost"
                       size="sm"
