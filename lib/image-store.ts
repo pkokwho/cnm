@@ -146,28 +146,56 @@ export async function fetchAndCacheImage(
   }
 }
 
-// ---- Client-side rate limiting (first line of defense) ----
-const LAST_GEN_KEY = "evidencebox:last-image-gen";
-const IMAGE_WINDOW_MS = 10 * 60 * 1000; // 10 minutes
+// ---- Client-side daily credit system (first line of defense) ----
+const CREDITS_KEY = "evidencebox:image-credits";
+const DAILY_LIMIT = 3;
 
-export function canGenerateImage(): { allowed: boolean; retryAfterMs: number } {
-  const last = localStorage.getItem(LAST_GEN_KEY);
-  if (!last) return { allowed: true, retryAfterMs: 0 };
-
-  const lastTs = parseInt(last, 10);
-  if (isNaN(lastTs)) return { allowed: true, retryAfterMs: 0 };
-
-  const elapsed = Date.now() - lastTs;
-  if (elapsed >= IMAGE_WINDOW_MS) return { allowed: true, retryAfterMs: 0 };
-
-  return {
-    allowed: false,
-    retryAfterMs: IMAGE_WINDOW_MS - elapsed,
-  };
+interface ClientCreditRecord {
+  date: string; // YYYY-MM-DD (Beijing time)
+  used: number;
 }
 
-export function recordClientImageGen(): void {
-  localStorage.setItem(LAST_GEN_KEY, Date.now().toString());
+function getBeijingDate(): string {
+  const now = new Date();
+  const beijing = new Date(now.getTime() + 8 * 60 * 60 * 1000);
+  return beijing.toISOString().slice(0, 10);
+}
+
+export function getRemainingCredits(): { remaining: number; limit: number } {
+  try {
+    const raw = localStorage.getItem(CREDITS_KEY);
+    if (!raw) return { remaining: DAILY_LIMIT, limit: DAILY_LIMIT };
+    const record: ClientCreditRecord = JSON.parse(raw);
+    const today = getBeijingDate();
+    if (record.date !== today) {
+      // New day — reset
+      return { remaining: DAILY_LIMIT, limit: DAILY_LIMIT };
+    }
+    return {
+      remaining: Math.max(DAILY_LIMIT - record.used, 0),
+      limit: DAILY_LIMIT,
+    };
+  } catch {
+    return { remaining: DAILY_LIMIT, limit: DAILY_LIMIT };
+  }
+}
+
+export function consumeClientCredit(): void {
+  const today = getBeijingDate();
+  let record: ClientCreditRecord = { date: today, used: 0 };
+  try {
+    const raw = localStorage.getItem(CREDITS_KEY);
+    if (raw) {
+      const parsed: ClientCreditRecord = JSON.parse(raw);
+      if (parsed.date === today) {
+        record = parsed;
+      }
+    }
+  } catch {
+    // Reset on parse error
+  }
+  record.used += 1;
+  localStorage.setItem(CREDITS_KEY, JSON.stringify(record));
 }
 
 export function generateImageId(): string {

@@ -3,14 +3,13 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import {
   Sparkles,
-  Loader2,
   Download,
   Trash2,
-  Clock,
   Key,
-  X,
   CheckCircle2,
   Image as ImageIcon,
+  Coins,
+  Zap,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -37,6 +36,15 @@ const SIZES = [
   { value: "768x1024", labelKey: "image.size.portrait" as const, desc: "768×1024" },
 ];
 
+// Animated loading phrases that cycle during generation
+const LOADING_PHRASES = [
+  "正在理解你的创意...",
+  "调色板上混合色彩...",
+  "勾勒轮廓与光影...",
+  "渲染高清细节...",
+  "最后润色中...",
+];
+
 export function ImageStudio() {
   const { t } = useI18n();
   const [prompt, setPrompt] = useState("");
@@ -46,15 +54,17 @@ export function ImageStudio() {
   const [currentImage, setCurrentImage] = useState<GeneratedImage | null>(null);
   const [history, setHistory] = useState<GeneratedImage[]>([]);
 
-  // Rate limit state
-  const [rateLimited, setRateLimited] = useState(false);
-  const [retryAfterSec, setRetryAfterSec] = useState(0);
-  const countdownRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  // Credits
+  const [credits, setCredits] = useState({ remaining: 3, limit: 3 });
 
   // Developer mode
   const [devDialogOpen, setDevDialogOpen] = useState(false);
   const [devKeyInput, setDevKeyInput] = useState("");
   const [isDev, setIsDev] = useState(false);
+
+  // Loading animation state
+  const [loadingPhraseIndex, setLoadingPhraseIndex] = useState(0);
+  const phraseTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   // Load state on mount
   useEffect(() => {
@@ -64,49 +74,38 @@ export function ImageStudio() {
       setIsDev(true);
       setDevKeyInput(existingDevKey);
     }
-    checkRateLimit();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    if (!existingDevKey) {
+      setCredits(imageStore.getRemainingCredits());
+    }
   }, []);
 
-  // Cleanup countdown on unmount
+  // Cycle loading phrases during generation
   useEffect(() => {
-    return () => {
-      if (countdownRef.current) clearInterval(countdownRef.current);
-    };
-  }, []);
-
-  const startCountdown = useCallback((seconds: number) => {
-    setRetryAfterSec(seconds);
-    if (countdownRef.current) clearInterval(countdownRef.current);
-    countdownRef.current = setInterval(() => {
-      setRetryAfterSec((prev) => {
-        if (prev <= 1) {
-          setRateLimited(false);
-          if (countdownRef.current) clearInterval(countdownRef.current);
-          return 0;
-        }
-        return prev - 1;
-      });
-    }, 1000);
-  }, []);
-
-  const checkRateLimit = useCallback(() => {
-    if (isDev) {
-      setRateLimited(false);
-      return;
-    }
-    const check = imageStore.canGenerateImage();
-    if (!check.allowed) {
-      setRateLimited(true);
-      startCountdown(Math.ceil(check.retryAfterMs / 1000));
+    if (generating) {
+      setLoadingPhraseIndex(0);
+      phraseTimerRef.current = setInterval(() => {
+        setLoadingPhraseIndex((prev) => (prev + 1) % LOADING_PHRASES.length);
+      }, 2500);
     } else {
-      setRateLimited(false);
+      if (phraseTimerRef.current) {
+        clearInterval(phraseTimerRef.current);
+        phraseTimerRef.current = null;
+      }
     }
-  }, [isDev, startCountdown]);
+    return () => {
+      if (phraseTimerRef.current) clearInterval(phraseTimerRef.current);
+    };
+  }, [generating]);
+
+  const refreshCredits = useCallback(() => {
+    if (!isDev) {
+      setCredits(imageStore.getRemainingCredits());
+    }
+  }, [isDev]);
 
   const handleGenerate = async () => {
     if (!prompt.trim() || generating) return;
-    if (!isDev && rateLimited) return;
+    if (!isDev && credits.remaining <= 0) return;
 
     setError(null);
     setGenerating(true);
@@ -126,15 +125,14 @@ export function ImageStudio() {
       const data = await res.json();
 
       if (res.status === 429) {
-        const retrySec = data.retryAfterSec || 600;
-        setRateLimited(true);
-        startCountdown(retrySec);
-        setError(data.error);
+        setError(data.error || "今日生成次数已用完，请明天再来");
+        setCredits({ remaining: 0, limit: data.limit || 3 });
         return;
       }
 
       if (!data.success) {
-        setError(data.error);
+        // All failures show "服务器繁忙"
+        setError(data.error || "服务器繁忙，请稍后重试");
         return;
       }
 
@@ -149,10 +147,15 @@ export function ImageStudio() {
 
       setCurrentImage(newImage);
 
-      // Record client-side rate limit (skip for developers)
+      // Consume client-side credit (skip for developers)
       if (!data.data.developer) {
-        imageStore.recordClientImageGen();
-        checkRateLimit();
+        imageStore.consumeClientCredit();
+        // Use server-returned remaining if available, otherwise recompute
+        if (data.data.remaining >= 0) {
+          setCredits((prev) => ({ ...prev, remaining: data.data.remaining }));
+        } else {
+          refreshCredits();
+        }
       }
 
       // Save to history
@@ -163,8 +166,8 @@ export function ImageStudio() {
       imageStore.fetchAndCacheImage(data.data.url, newImage.id).then(() => {
         setHistory(imageStore.getImages());
       });
-    } catch (err: any) {
-      setError(err.message || "图片生成失败");
+    } catch {
+      setError("服务器繁忙，请稍后重试");
     } finally {
       setGenerating(false);
     }
@@ -201,10 +204,10 @@ export function ImageStudio() {
     setIsDev(activated);
     setDevDialogOpen(false);
     if (activated) {
-      setRateLimited(false);
-      if (countdownRef.current) clearInterval(countdownRef.current);
+      // Developer has unlimited credits
+      setCredits({ remaining: 999, limit: 999 });
     } else {
-      checkRateLimit();
+      refreshCredits();
     }
   };
 
@@ -213,13 +216,7 @@ export function ImageStudio() {
     setIsDev(false);
     setDevKeyInput("");
     setDevDialogOpen(false);
-    checkRateLimit();
-  };
-
-  const formatCountdown = (sec: number) => {
-    const m = Math.floor(sec / 60);
-    const s = sec % 60;
-    return `${m}m ${s}s`;
+    refreshCredits();
   };
 
   const formatTime = (ts: number) => {
@@ -231,7 +228,8 @@ export function ImageStudio() {
     });
   };
 
-  const canGenerate = !generating && (!rateLimited || isDev) && prompt.trim().length > 0;
+  const noCredits = !isDev && credits.remaining <= 0;
+  const canGenerate = !generating && !noCredits && prompt.trim().length > 0;
 
   return (
     <div>
@@ -242,9 +240,15 @@ export function ImageStudio() {
           <p className="mt-1 text-sm text-muted">{t("image.subtitle")}</p>
         </div>
         <div className="flex items-center gap-2">
-          {isDev && (
-            <Badge variant="default" className="bg-green-600">
-              <CheckCircle2 className="mr-1 h-3 w-3" />
+          {/* Credits display */}
+          {!isDev ? (
+            <Badge variant={credits.remaining > 0 ? "default" : "secondary"} className="gap-1">
+              <Coins className="h-3 w-3" />
+              {credits.remaining} / {credits.limit}
+            </Badge>
+          ) : (
+            <Badge variant="default" className="bg-green-600 gap-1">
+              <CheckCircle2 className="h-3 w-3" />
               {t("image.dev.enabled")}
             </Badge>
           )}
@@ -312,24 +316,26 @@ export function ImageStudio() {
             >
               {generating ? (
                 <>
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  <Sparkles className="mr-2 h-4 w-4 animate-pulse" />
                   {t("image.generating")}
+                </>
+              ) : noCredits ? (
+                <>
+                  <Coins className="mr-2 h-4 w-4" />
+                  {t("image.noCredits")}
                 </>
               ) : (
                 <>
-                  <Sparkles className="mr-2 h-4 w-4" />
-                  {t("image.generate")}
+                  <Zap className="mr-2 h-4 w-4" />
+                  {t("image.generate")} ({credits.remaining})
                 </>
               )}
             </Button>
 
-            {rateLimited && !isDev && (
-              <div className="flex items-center justify-center gap-2 text-sm text-warning">
-                <Clock className="h-4 w-4" />
-                <span>
-                  {t("image.rateLimit.countdown")}: {formatCountdown(retryAfterSec)}
-                </span>
-              </div>
+            {noCredits && !isDev && (
+              <p className="text-center text-sm text-muted">
+                {t("image.creditsReset")}
+              </p>
             )}
 
             {error && (
@@ -338,14 +344,75 @@ export function ImageStudio() {
           </div>
         </div>
 
-        {/* Right: Result */}
+        {/* Right: Result / Loading Animation */}
         <div>
           <Card className="min-h-[400px]">
             <CardHeader>
               <CardTitle className="text-base">{t("image.result")}</CardTitle>
             </CardHeader>
             <CardContent>
-              {currentImage ? (
+              {generating ? (
+                /* ===== High-end loading animation ===== */
+                <div className="flex h-[300px] flex-col items-center justify-center">
+                  {/* Animated gradient orb */}
+                  <div className="relative mb-6 h-24 w-24">
+                    {/* Outer rotating ring */}
+                    <div
+                      className="absolute inset-0 rounded-full border-2 border-transparent"
+                      style={{
+                        borderTopColor: "var(--accent)",
+                        borderRightColor: "var(--accent)",
+                        animation: "spin 1.2s linear infinite",
+                      }}
+                    />
+                    {/* Inner pulsing core */}
+                    <div
+                      className="absolute inset-3 rounded-full bg-gradient-to-br from-accent to-purple-500 opacity-80"
+                      style={{
+                        animation: "pulse-scale 1.5s ease-in-out infinite",
+                      }}
+                    />
+                    {/* Sparkle icon in center */}
+                    <div className="absolute inset-0 flex items-center justify-center">
+                      <Sparkles
+                        className="h-8 w-8 text-white"
+                        style={{ animation: "fade-flicker 2s ease-in-out infinite" }}
+                      />
+                    </div>
+                    {/* Orbiting dots */}
+                    <div
+                      className="absolute inset-0"
+                      style={{ animation: "spin 3s linear infinite reverse" }}
+                    >
+                      <div className="absolute left-1/2 top-0 h-2 w-2 -translate-x-1/2 rounded-full bg-accent" />
+                      <div className="absolute bottom-0 left-1/2 h-1.5 w-1.5 -translate-x-1/2 rounded-full bg-purple-400" />
+                    </div>
+                  </div>
+
+                  {/* Cycling loading phrases */}
+                  <div className="h-6 overflow-hidden">
+                    <p
+                      key={loadingPhraseIndex}
+                      className="text-sm font-medium text-accent"
+                      style={{ animation: "fade-slide-up 0.5s ease-out" }}
+                    >
+                      {LOADING_PHRASES[loadingPhraseIndex]}
+                    </p>
+                  </div>
+
+                  {/* Progress shimmer bar */}
+                  <div className="mt-4 h-1 w-48 overflow-hidden rounded-full bg-bg2">
+                    <div
+                      className="h-full rounded-full bg-gradient-to-r from-accent via-purple-400 to-accent"
+                      style={{
+                        width: "40%",
+                        animation: "shimmer-slide 1.8s ease-in-out infinite",
+                      }}
+                    />
+                  </div>
+                </div>
+              ) : currentImage ? (
+                /* ===== Result display ===== */
                 <div className="space-y-4">
                   <div className="flex justify-center rounded-lg border border-border bg-bg2 p-4">
                     {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -381,6 +448,7 @@ export function ImageStudio() {
                   </div>
                 </div>
               ) : (
+                /* ===== Empty state ===== */
                 <div className="flex h-[300px] flex-col items-center justify-center text-muted">
                   <ImageIcon className="mb-2 h-12 w-12 opacity-50" />
                   <p className="text-sm">{t("image.noResult")}</p>
@@ -475,6 +543,30 @@ export function ImageStudio() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Animation keyframes */}
+      <style jsx global>{`
+        @keyframes spin {
+          to { transform: rotate(360deg); }
+        }
+        @keyframes pulse-scale {
+          0%, 100% { transform: scale(0.85); opacity: 0.6; }
+          50% { transform: scale(1.05); opacity: 0.9; }
+        }
+        @keyframes fade-flicker {
+          0%, 100% { opacity: 0.7; transform: scale(0.9); }
+          50% { opacity: 1; transform: scale(1.1); }
+        }
+        @keyframes fade-slide-up {
+          from { opacity: 0; transform: translateY(8px); }
+          to { opacity: 1; transform: translateY(0); }
+        }
+        @keyframes shimmer-slide {
+          0% { transform: translateX(-100%); }
+          50% { transform: translateX(50%); }
+          100% { transform: translateX(150%); }
+        }
+      `}</style>
     </div>
   );
 }

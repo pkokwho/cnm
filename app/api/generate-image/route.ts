@@ -2,7 +2,7 @@ import { NextRequest } from "next/server";
 import { apiResponse, apiError } from "@/lib/utils";
 import { getAgnesClient } from "@/lib/agnes/client";
 import { AGNES_CONFIG, isAIEnabled } from "@/lib/agnes/config";
-import { checkImageRateLimit, recordImageGeneration } from "@/lib/agnes/image-rate-limit";
+import { checkImageCredits, consumeCredit } from "@/lib/agnes/image-rate-limit";
 
 export const maxDuration = 60;
 export const runtime = "nodejs";
@@ -61,17 +61,17 @@ export async function POST(request: NextRequest) {
     // Check developer bypass
     const devMode = isDeveloper(developerKey);
 
-    // Rate limit check (skip for developers)
+    // Credit check (skip for developers)
     if (!devMode) {
-      const rateCheck = checkImageRateLimit(deviceId);
-      if (!rateCheck.allowed) {
-        const retryAfterSec = Math.ceil(rateCheck.retryAfterMs / 1000);
+      const creditCheck = checkImageCredits(deviceId);
+      if (!creditCheck.allowed) {
         return Response.json(
           {
             success: false,
             data: null,
-            error: `生成过于频繁，请等待 ${retryAfterSec} 秒后再试`,
-            retryAfterSec,
+            error: `今日生成次数已用完（每日 ${creditCheck.limit} 次），请明天再来`,
+            remaining: 0,
+            limit: creditCheck.limit,
           },
           { status: 429 }
         );
@@ -89,12 +89,19 @@ export async function POST(request: NextRequest) {
 
     const imageUrl = response.data?.[0]?.url;
     if (!imageUrl) {
-      return apiError("图片生成失败：未返回图片 URL", 500);
+      // Generation returned no URL — show user-friendly error
+      if (!devMode) {
+        // Don't consume credit on failure
+      }
+      return apiError("服务器繁忙，请稍后重试", 503);
     }
 
-    // Record successful generation for rate limiting (non-developers only)
+    // Consume credit only on successful generation (non-developers only)
+    let remaining = -1;
     if (!devMode) {
-      recordImageGeneration(deviceId);
+      consumeCredit(deviceId);
+      const afterCheck = checkImageCredits(deviceId);
+      remaining = afterCheck.remaining;
     }
 
     return apiResponse({
@@ -102,9 +109,11 @@ export async function POST(request: NextRequest) {
       prompt: prompt.trim(),
       size,
       developer: devMode,
+      remaining,
     });
   } catch (error: any) {
     console.error("[Agnes AI] Image generation error:", error.message);
-    return apiError(`图片生成失败: ${error.message}`, 500);
+    // All failures show "服务器繁忙" to the user (no technical details leaked)
+    return apiError("服务器繁忙，请稍后重试", 503);
   }
 }

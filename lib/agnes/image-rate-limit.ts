@@ -1,59 +1,76 @@
-// Per-device image generation rate limiter
-// Constraint: 1 image per device per 10 minutes
+// Per-device daily credit system for image generation
+// Each device gets 3 credits per day (midnight reset, Beijing time)
 // Developers bypass this limit entirely
 //
 // Note: On Vercel serverless, each instance has its own Map.
-// This is imprecise across instances but sufficient as a server-side
-// backup to the client-side localStorage check.
+// Client-side localStorage is the primary defense; this is the server-side backup.
 
-const IMAGE_WINDOW_MS = 10 * 60 * 1000; // 10 minutes
+interface CreditRecord {
+  date: string; // YYYY-MM-DD (Beijing time)
+  creditsUsed: number;
+}
 
-// Map<deviceId, lastGeneratedTimestamp>
-const deviceTimestamps = new Map<string, number>();
+const DAILY_CREDIT_LIMIT = 3;
 
-// Hard cap to prevent memory leaks in attack scenarios
+// Map<deviceId, CreditRecord>
+const deviceCredits = new Map<string, CreditRecord>();
+
+// Hard cap to prevent memory leaks
 const MAX_ENTRIES = 10000;
 
+function getBeijingDate(): string {
+  // Convert to Beijing time (UTC+8)
+  const now = new Date();
+  const beijing = new Date(now.getTime() + 8 * 60 * 60 * 1000);
+  return beijing.toISOString().slice(0, 10); // YYYY-MM-DD
+}
+
 function cleanup() {
-  const now = Date.now();
-  for (const [id, ts] of deviceTimestamps) {
-    if (now - ts > IMAGE_WINDOW_MS) {
-      deviceTimestamps.delete(id);
+  const today = getBeijingDate();
+  for (const [id, record] of deviceCredits) {
+    if (record.date !== today) {
+      deviceCredits.delete(id);
     }
   }
-  if (deviceTimestamps.size > MAX_ENTRIES) {
-    const sorted = [...deviceTimestamps.entries()].sort((a, b) => a[1] - b[1]);
-    const toRemove = sorted.length - MAX_ENTRIES;
-    for (let i = 0; i < toRemove; i++) {
-      deviceTimestamps.delete(sorted[i][0]);
-    }
+  if (deviceCredits.size > MAX_ENTRIES) {
+    deviceCredits.clear(); // Emergency cleanup
   }
 }
 
 /**
- * Check if a device is allowed to generate an image.
- * Does NOT record the generation — call recordImageGeneration() after success.
+ * Check if a device has remaining credits.
+ * Does NOT consume a credit — call consumeCredit() after successful generation.
  */
-export function checkImageRateLimit(
+export function checkImageCredits(
   deviceId: string
-): { allowed: boolean; retryAfterMs: number } {
+): { allowed: boolean; remaining: number; limit: number } {
   cleanup();
 
-  const now = Date.now();
-  const lastGen = deviceTimestamps.get(deviceId);
+  const today = getBeijingDate();
+  const record = deviceCredits.get(deviceId);
 
-  if (lastGen && now - lastGen < IMAGE_WINDOW_MS) {
-    const retryAfterMs = lastGen + IMAGE_WINDOW_MS - now;
-    return { allowed: false, retryAfterMs: Math.max(retryAfterMs, 1000) };
+  if (!record || record.date !== today) {
+    return { allowed: true, remaining: DAILY_CREDIT_LIMIT, limit: DAILY_CREDIT_LIMIT };
   }
 
-  return { allowed: true, retryAfterMs: 0 };
+  const remaining = DAILY_CREDIT_LIMIT - record.creditsUsed;
+  return {
+    allowed: remaining > 0,
+    remaining: Math.max(remaining, 0),
+    limit: DAILY_CREDIT_LIMIT,
+  };
 }
 
 /**
- * Record a successful image generation for a device.
- * Call this ONLY after the image was successfully generated.
+ * Consume one credit for a device (after successful generation).
  */
-export function recordImageGeneration(deviceId: string): void {
-  deviceTimestamps.set(deviceId, Date.now());
+export function consumeCredit(deviceId: string): void {
+  const today = getBeijingDate();
+  const record = deviceCredits.get(deviceId);
+
+  if (!record || record.date !== today) {
+    deviceCredits.set(deviceId, { date: today, creditsUsed: 1 });
+  } else {
+    record.creditsUsed += 1;
+  }
 }
