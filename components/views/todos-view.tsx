@@ -87,7 +87,7 @@ export function TodosView({ todos, caseId }: { todos: TodoItem[]; caseId: string
                   >
                     <button
                       onClick={() => toggleTodo(todo.id)}
-                      className="mt-0.5 flex-shrink-0"
+                      className="mt-0.5 flex h-8 w-8 flex-shrink-0 items-center justify-center rounded"
                     >
                       {isDone ? (
                         <CheckSquare className="h-5 w-5 text-accent2" />

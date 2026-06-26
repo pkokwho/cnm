@@ -135,8 +135,9 @@ export default function LandingPage() {
             <img
               src="/user_scene_1024x576.jpg"
               alt={t("problem.imgCaption")}
+              loading="lazy"
               className="mx-auto rounded-lg border border-border shadow-lg"
-              style={{ maxHeight: "420px", width: "auto" }}
+              style={{ maxHeight: "420px", width: "auto", maxWidth: "100%" }}
             />
             <p className="mt-3 text-sm text-muted">{t("problem.imgCaption")}</p>
           </div>

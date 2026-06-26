@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import dynamic from "next/dynamic";
 import { Calendar, FileText, CheckSquare, Lightbulb, Download, Loader2, MessageSquare, Sparkles } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
@@ -9,10 +10,18 @@ import { TimelineView } from "@/components/views/timeline-view";
 import { SummaryView } from "@/components/views/summary-view";
 import { TodosView } from "@/components/views/todos-view";
 import { SuggestionsView } from "@/components/views/suggestions-view";
-import { AIChat } from "@/components/ai-chat";
 import type { AnalysisResult, TimelineEntry, Summary, TodoItem, Suggestion } from "@/lib/analyzer/types";
 import { useI18n } from "@/lib/i18n/context";
 import * as clientStore from "@/lib/client-store";
+
+// Lazy-load AIChat — only needed when user opens the chat tab
+const AIChat = dynamic(() => import("@/components/ai-chat").then(m => m.AIChat), {
+  loading: () => (
+    <div className="flex items-center justify-center py-20">
+      <Loader2 className="h-6 w-6 animate-spin text-accent" />
+    </div>
+  ),
+});
 
 interface ResultTabsProps {
   result: AnalysisResult | null;
@@ -135,7 +144,7 @@ export function ResultTabs({ result, caseId, caseTitle, loading }: ResultTabsPro
 
   return (
     <div>
-      <div className="mb-4 flex items-center justify-between">
+      <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div className="flex items-center gap-2">
           <h2 className="text-lg font-bold">{t("result.title")}</h2>
           {result.engine === "agnes-ai" && (
@@ -162,41 +171,46 @@ export function ResultTabs({ result, caseId, caseTitle, loading }: ResultTabsPro
       </div>
 
       <Tabs value={activeTab} onValueChange={setActiveTab}>
-        <TabsList className="grid w-full grid-cols-5">
-          <TabsTrigger value="timeline">
+        <TabsList className="flex w-full overflow-x-auto sm:grid sm:grid-cols-5 sm:overflow-visible">
+          <TabsTrigger value="timeline" className="flex-1 whitespace-nowrap sm:flex-initial">
             <Calendar className="mr-1.5 h-4 w-4" />
-            {t("result.tab.timeline")}
+            <span className="hidden sm:inline">{t("result.tab.timeline")}</span>
+            <span className="sm:hidden">时间线</span>
             {result.timeline.length > 0 && (
               <span className="ml-1.5 rounded-full bg-accent-light px-1.5 text-xs text-accent">
                 {result.timeline.length}
               </span>
             )}
           </TabsTrigger>
-          <TabsTrigger value="summary">
+          <TabsTrigger value="summary" className="flex-1 whitespace-nowrap sm:flex-initial">
             <FileText className="mr-1.5 h-4 w-4" />
-            {t("result.tab.summary")}
+            <span className="hidden sm:inline">{t("result.tab.summary")}</span>
+            <span className="sm:hidden">摘要</span>
           </TabsTrigger>
-          <TabsTrigger value="todos">
+          <TabsTrigger value="todos" className="flex-1 whitespace-nowrap sm:flex-initial">
             <CheckSquare className="mr-1.5 h-4 w-4" />
-            {t("result.tab.todos")}
+            <span className="hidden sm:inline">{t("result.tab.todos")}</span>
+            <span className="sm:hidden">待办</span>
             {result.todos.length > 0 && (
               <span className="ml-1.5 rounded-full bg-accent-light px-1.5 text-xs text-accent">
                 {result.todos.length}
               </span>
             )}
           </TabsTrigger>
-          <TabsTrigger value="suggestions">
+          <TabsTrigger value="suggestions" className="flex-1 whitespace-nowrap sm:flex-initial">
             <Lightbulb className="mr-1.5 h-4 w-4" />
-            {t("result.tab.suggestions")}
+            <span className="hidden sm:inline">{t("result.tab.suggestions")}</span>
+            <span className="sm:hidden">建议</span>
             {result.suggestions.length > 0 && (
               <span className="ml-1.5 rounded-full bg-accent-light px-1.5 text-xs text-accent">
                 {result.suggestions.length}
               </span>
             )}
           </TabsTrigger>
-          <TabsTrigger value="chat">
+          <TabsTrigger value="chat" className="flex-1 whitespace-nowrap sm:flex-initial">
             <MessageSquare className="mr-1.5 h-4 w-4" />
-            {t("result.tab.chat")}
+            <span className="hidden sm:inline">{t("result.tab.chat")}</span>
+            <span className="sm:hidden">对话</span>
             <Sparkles className="ml-0.5 h-3 w-3 text-accent" />
           </TabsTrigger>
         </TabsList>

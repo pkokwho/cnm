@@ -234,9 +234,9 @@ export function ImageStudio() {
   return (
     <div>
       {/* Header */}
-      <div className="mb-6 flex items-center justify-between">
+      <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h1 className="text-2xl font-bold">{t("image.title")}</h1>
+          <h1 className="text-xl font-bold sm:text-2xl">{t("image.title")}</h1>
           <p className="mt-1 text-sm text-muted">{t("image.subtitle")}</p>
         </div>
         <div className="flex items-center gap-2">
@@ -256,9 +256,11 @@ export function ImageStudio() {
             variant={isDev ? "destructive" : "ghost"}
             size="sm"
             onClick={() => setDevDialogOpen(true)}
+            className="h-9"
           >
             <Key className="mr-1 h-4 w-4" />
-            {isDev ? t("image.dev.deactivate") : t("image.dev.title")}
+            <span className="hidden sm:inline">{isDev ? t("image.dev.deactivate") : t("image.dev.title")}</span>
+            <span className="sm:hidden">{isDev ? "退出" : "开发者"}</span>
           </Button>
         </div>
       </div>
@@ -474,27 +476,28 @@ export function ImageStudio() {
                 <img
                   src={img.url}
                   alt={img.prompt}
+                  loading="lazy"
                   className="aspect-square w-full object-cover transition-transform group-hover:scale-105"
                 />
-                <div className="absolute inset-0 flex flex-col justify-between bg-gradient-to-t from-black/70 to-transparent p-2 opacity-0 transition-opacity group-hover:opacity-100">
+                <div className="absolute inset-0 flex flex-col justify-between bg-gradient-to-t from-black/70 to-transparent p-2 opacity-100 transition-opacity sm:opacity-0 sm:group-hover:opacity-100">
                   <div className="flex justify-end gap-1">
                     <button
                       onClick={(e) => {
                         e.stopPropagation();
                         handleDownload(img);
                       }}
-                      className="rounded bg-white/20 p-1 text-white hover:bg-white/30"
+                      className="rounded bg-white/20 p-2 text-white hover:bg-white/30"
                     >
-                      <Download className="h-3 w-3" />
+                      <Download className="h-4 w-4" />
                     </button>
                     <button
                       onClick={(e) => {
                         e.stopPropagation();
                         handleDelete(img.id);
                       }}
-                      className="rounded bg-white/20 p-1 text-white hover:bg-white/30"
+                      className="rounded bg-white/20 p-2 text-white hover:bg-white/30"
                     >
-                      <Trash2 className="h-3 w-3" />
+                      <Trash2 className="h-4 w-4" />
                     </button>
                   </div>
                   <p className="line-clamp-2 text-xs text-white">{img.prompt}</p>

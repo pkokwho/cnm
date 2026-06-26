@@ -238,7 +238,7 @@ export default function CaseWorkspacePage() {
             {t("case.back")}
           </Button>
         </Link>
-        <h1 className="text-2xl font-bold">{caseData.title}</h1>
+        <h1 className="text-xl font-bold sm:text-2xl">{caseData.title}</h1>
       </div>
 
       {/* Progress */}

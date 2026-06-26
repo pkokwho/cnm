@@ -3,7 +3,6 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { Box, Home, LayoutDashboard, Languages, Sparkles } from "lucide-react";
-import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { useI18n } from "@/lib/i18n/context";
 
@@ -22,48 +21,54 @@ export function NavBar() {
             <Box className="h-4 w-4" />
           </div>
           <span className="text-base">EvidenceBox</span>
-          <span className="text-xs font-normal text-muted">
+          <span className="hidden text-xs font-normal text-muted sm:inline">
             {lang === "zh" ? "证据盒" : "Evidence Box"}
           </span>
         </Link>
 
-        <nav className="flex items-center gap-2">
+        <nav className="flex items-center gap-1 sm:gap-2">
           <Link href="/">
             <Button
               variant={isHome ? "secondary" : "ghost"}
               size="sm"
+              className="h-9 w-9 p-0 sm:h-auto sm:w-auto sm:px-3"
+              title={t("nav.home")}
             >
-              <Home className="mr-1 h-4 w-4" />
-              {t("nav.home")}
+              <Home className="h-4 w-4 sm:mr-1" />
+              <span className="hidden sm:inline">{t("nav.home")}</span>
             </Button>
           </Link>
           <Link href="/app">
             <Button
               variant={isWorkspace && !isImageStudio ? "secondary" : "ghost"}
               size="sm"
+              className="h-9 w-9 p-0 sm:h-auto sm:w-auto sm:px-3"
+              title={t("nav.workspace")}
             >
-              <LayoutDashboard className="mr-1 h-4 w-4" />
-              {t("nav.workspace")}
+              <LayoutDashboard className="h-4 w-4 sm:mr-1" />
+              <span className="hidden sm:inline">{t("nav.workspace")}</span>
             </Button>
           </Link>
           <Link href="/app/image-studio">
             <Button
               variant={isImageStudio ? "secondary" : "default"}
               size="sm"
+              className="h-9 w-9 p-0 sm:h-auto sm:w-auto sm:px-3"
+              title={t("nav.imageStudio")}
             >
-              <Sparkles className="mr-1 h-4 w-4" />
-              {t("nav.imageStudio")}
+              <Sparkles className="h-4 w-4 sm:mr-1" />
+              <span className="hidden sm:inline">{t("nav.imageStudio")}</span>
             </Button>
           </Link>
           <Button
             variant="ghost"
             size="sm"
             onClick={toggleLang}
-            className="ml-1 min-w-[44px] gap-1"
+            className="ml-1 h-9 min-w-[36px] gap-1 px-2"
             title={lang === "zh" ? "Switch to English" : "切换为中文"}
           >
             <Languages className="h-4 w-4" />
-            {lang === "zh" ? "EN" : "中"}
+            <span className="text-xs">{lang === "zh" ? "EN" : "中"}</span>
           </Button>
         </nav>
       </div>

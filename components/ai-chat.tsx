@@ -153,7 +153,7 @@ export function AIChat({ caseId, materials }: AIChatProps) {
   ];
 
   return (
-    <div className="flex h-[500px] flex-col">
+    <div className="flex h-[60vh] max-h-[500px] min-h-[350px] flex-col">
       {/* Header */}
       <div className="flex items-center justify-between border-b border-border pb-2 mb-3">
         <div className="flex items-center gap-1.5 text-sm font-medium">
@@ -165,7 +165,7 @@ export function AIChat({ caseId, materials }: AIChatProps) {
             variant="ghost"
             size="sm"
             onClick={handleClear}
-            className="h-7 text-xs text-muted"
+            className="h-9 text-xs text-muted"
           >
             <Trash2 className="mr-1 h-3 w-3" />
             {t("chat.clear")}

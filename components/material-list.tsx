@@ -54,7 +54,7 @@ export function MaterialList({
         return (
           <div
             key={m.id}
-            className="flex items-center gap-3 rounded-md border border-border bg-background p-3"
+            className="flex items-center gap-2 rounded-md border border-border bg-background p-3 sm:gap-3"
           >
             <div className="flex-shrink-0">{getFileIcon(m.category)}</div>
             <div className="min-w-0 flex-1">
@@ -64,7 +64,7 @@ export function MaterialList({
                 {m.errorMsg && <span className="text-red-500">— {m.errorMsg}</span>}
               </div>
             </div>
-            <div className="flex items-center gap-2">
+            <div className="flex flex-shrink-0 items-center gap-1.5 sm:gap-2">
               <Badge variant={config.variant}>
                 <Icon className={`mr-1 h-3 w-3 ${m.status === "extracting" ? "animate-spin" : ""}`} />
                 {config.label}
@@ -73,10 +73,10 @@ export function MaterialList({
                 <Button
                   variant="ghost"
                   size="sm"
-                  className="h-7 w-7 p-0 text-red-500"
+                  className="h-9 w-9 p-0 text-red-500"
                   onClick={() => onDelete(m.id)}
                 >
-                  <Trash2 className="h-3.5 w-3.5" />
+                  <Trash2 className="h-4 w-4" />
                 </Button>
               )}
             </div>

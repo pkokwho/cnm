@@ -20,7 +20,7 @@ export function CaseProgress({ status, materialProgress }: { status: string; mat
   if (status === "created") currentStepIdx = -1;
 
   return (
-    <div className="flex items-center justify-between rounded-lg border border-border bg-bg2 p-4">
+    <div className="flex items-center justify-between rounded-lg border border-border bg-bg2 p-3 sm:p-4">
       {STEPS.map((step, idx) => {
         const stepIdx = STEP_ORDER.indexOf(step.key);
         const isActive = currentStepIdx === stepIdx;
@@ -32,7 +32,7 @@ export function CaseProgress({ status, materialProgress }: { status: string; mat
             <div className="flex flex-col items-center">
               <div
                 className={cn(
-                  "flex h-10 w-10 items-center justify-center rounded-full border-2 transition-all",
+                  "flex h-8 w-8 items-center justify-center rounded-full border-2 transition-all sm:h-10 sm:w-10",
                   isCompleted && "border-accent2 bg-accent2 text-white",
                   isActive && !isFailed && "border-accent bg-accent text-white",
                   isFailed && "border-red-500 bg-red-500 text-white",
@@ -40,16 +40,16 @@ export function CaseProgress({ status, materialProgress }: { status: string; mat
                 )}
               >
                 {isCompleted ? (
-                  <Check className="h-5 w-5" />
+                  <Check className="h-4 w-4 sm:h-5 sm:w-5" />
                 ) : isActive && !isFailed ? (
-                  <Loader2 className="h-5 w-5 animate-spin" />
+                  <Loader2 className="h-4 w-4 animate-spin sm:h-5 sm:w-5" />
                 ) : (
-                  <step.icon className="h-5 w-5" />
+                  <step.icon className="h-4 w-4 sm:h-5 sm:w-5" />
                 )}
               </div>
               <span
                 className={cn(
-                  "mt-2 text-xs font-medium",
+                  "mt-1.5 text-xs font-medium sm:mt-2",
                   isActive || isCompleted ? "text-foreground" : "text-muted"
                 )}
               >
@@ -64,7 +64,7 @@ export function CaseProgress({ status, materialProgress }: { status: string; mat
             {idx < STEPS.length - 1 && (
               <div
                 className={cn(
-                  "mx-2 h-0.5 flex-1 transition-colors",
+                  "mx-1 h-0.5 flex-1 transition-colors sm:mx-2",
                   currentStepIdx > stepIdx ? "bg-accent2" : "bg-border"
                 )}
               />

@@ -66,9 +66,9 @@ export default function WorkspaceHome() {
 
   return (
     <div>
-      <div className="mb-6 flex items-center justify-between">
+      <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h1 className="text-2xl font-bold">{t("cases.title")}</h1>
+          <h1 className="text-xl font-bold sm:text-2xl">{t("cases.title")}</h1>
           <p className="mt-1 text-sm text-muted">{t("cases.subtitle")}</p>
         </div>
         <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
@@ -154,7 +154,7 @@ export default function WorkspaceHome() {
                     <Button
                       variant="ghost"
                       size="sm"
-                      className="text-red-500 opacity-0 transition-opacity group-hover:opacity-100"
+                      className="h-9 w-9 p-0 text-red-500 opacity-100 transition-opacity sm:opacity-0 sm:group-hover:opacity-100"
                       onClick={(e) => {
                         e.preventDefault();
                         setDeleteConfirm(c.id);
